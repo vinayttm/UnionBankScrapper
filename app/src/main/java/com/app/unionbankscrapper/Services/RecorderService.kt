@@ -136,6 +136,7 @@ class RecorderService : AccessibilityService() {
             getBoundsInScreen(clickArea)
             performTap(clickArea.centerX().toFloat(), clickArea.centerY().toFloat(), 950)
             recycle()
+            isMiniStatement = false;
         }
     }
 
@@ -152,14 +153,99 @@ class RecorderService : AccessibilityService() {
         }
     }
 
-    private fun backingProcess() {
-        val backButton = au.findNodeByContentDescription(rootInActiveWindow, "back Button")
-        backButton?.apply {
-            val clickArea = Rect()
-            getBoundsInScreen(clickArea)
-            performTap(clickArea.centerX().toFloat(), clickArea.centerY().toFloat(), 950)
-            ticker.startReAgain()
-            recycle()
+
+    private fun clickFourthImageView(rootNode: AccessibilityNodeInfo?) {
+        if (rootNode == null) return
+
+        val imageViewNodes = mutableListOf<AccessibilityNodeInfo>()
+
+        findImageViewNodes(rootNode, imageViewNodes)
+
+        var imageViewCount = 0
+
+        for (imageViewNode in imageViewNodes) {
+            println("imageViewNode ${imageViewNode.className}")
+            if (imageViewCount == 1) {
+                val clickArea = Rect()
+                imageViewNode.getBoundsInScreen(clickArea)
+                performTap(clickArea.centerX().toFloat(), clickArea.centerY().toFloat(), 950)
+                imageViewNode.recycle()
+                return
+            }
+            imageViewCount++
+            imageViewNode.recycle()
+        }
+    }
+
+    private fun findImageViewNodes(
+        rootNode: AccessibilityNodeInfo,
+        imageViewNodes: MutableList<AccessibilityNodeInfo>
+    ) {
+        for (i in 0 until rootNode.childCount) {
+            val childNode = rootNode.getChild(i)
+            if (childNode != null) {
+                if (childNode.className == "android.widget.ImageView") {
+                    imageViewNodes.add(childNode)
+                }
+                findImageViewNodes(childNode, imageViewNodes)
+            }
+        }
+    }
+
+
+    private fun clickBeforeRecyclerView(rootNode: AccessibilityNodeInfo?, recyclerViewClassName: String) {
+        if (rootNode == null) return
+
+        val recyclerViewNodes = mutableListOf<AccessibilityNodeInfo>()
+
+        findRecyclerViewNodes(rootNode, recyclerViewClassName, recyclerViewNodes)
+
+        for (recyclerViewNode in recyclerViewNodes) {
+            val parent = recyclerViewNode.parent
+            val parentChildCount = parent?.childCount ?: 0
+            var recyclerViewIndex = -1
+
+            for (i in 0 until parentChildCount) {
+                val child = parent?.getChild(i)
+                if (child == recyclerViewNode) {
+                    recyclerViewIndex = i
+                    break
+                }
+            }
+
+            println("Parent: $parent")
+            println("RecyclerViewIndex: $recyclerViewIndex")
+            println("ParentChildCount: $parentChildCount")
+
+            // If the RecyclerView is not the first child and index is valid, click on its preceding sibling
+            if (recyclerViewIndex in 1 until parentChildCount) {
+                val precedingSibling = parent?.getChild(recyclerViewIndex - 1)
+                precedingSibling?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                precedingSibling?.recycle()
+            }
+
+            recyclerViewNode.recycle()
+        }
+    }
+
+    private fun findRecyclerViewNodes(
+        rootNode: AccessibilityNodeInfo,
+        recyclerViewClassName: String,
+        recyclerViewNodes: MutableList<AccessibilityNodeInfo>
+    ) {
+        if (rootNode.className == recyclerViewClassName) {
+            recyclerViewNodes.add(rootNode)
+        } else {
+            for (i in 0 until rootNode.childCount) {
+                val childNode = rootNode.getChild(i)
+                childNode?.let {
+                    findRecyclerViewNodes(
+                        it,
+                        recyclerViewClassName,
+                        recyclerViewNodes
+                    )
+                }
+            }
         }
     }
 
@@ -168,6 +254,7 @@ class RecorderService : AccessibilityService() {
         val mainList = au.listAllTextsInActiveWindow(au.getTopMostParentNode(rootInActiveWindow))
         val mutableList = mutableListOf<String>()
         if (mainList.contains("Mini Statement")) {
+
             val unfilteredList = mainList.filter { it.isNotEmpty() }
             val aNoIndex = unfilteredList.indexOf("Available Balance")
             if (aNoIndex != -1 && aNoIndex < unfilteredList.size - 3) {
@@ -185,6 +272,8 @@ class RecorderService : AccessibilityService() {
     private fun readTransaction() {
         val output = JSONArray()
         val mainList = au.listAllTextsInActiveWindow(au.getTopMostParentNode(rootInActiveWindow))
+
+
         try {
             if (mainList.contains("Mini Statement")) {
                 val filterList = filterList();
@@ -232,10 +321,12 @@ class RecorderService : AccessibilityService() {
                     try {
                         result.put("Result", aes.encrypt(output.toString()))
                         apiManager.saveBankTransaction(result.toString());
-                        performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+                        clickBeforeRecyclerView(
+                            rootInActiveWindow,
+                            "androidx.recyclerview.widget.RecyclerView"
+                        )
                         Thread.sleep(5000)
-                        backingProcess()
-                        isMiniStatement = false
+                        clickFourthImageView(rootInActiveWindow)
                         ticker.startReAgain()
                     } catch (e: JSONException) {
                         throw java.lang.RuntimeException(e)
@@ -273,9 +364,25 @@ class RecorderService : AccessibilityService() {
 
     private fun checkForSessionExpiry() {
         val node1 = au.findNodeByText(rootInActiveWindow, "Session Timeout Alert", false, false)
+        val nod2 = au.findNodeByText(
+            rootInActiveWindow,
+            "Session Timeout. Please Login again to continue.",
+            false,
+            false
+        )
         node1?.apply {
             val node2 = au.findNodeByText(rootInActiveWindow, "Keep me logged in", false, false)
             node2?.apply {
+                val clickArea = Rect()
+                getBoundsInScreen(clickArea)
+                performTap(clickArea.centerX().toFloat(), clickArea.centerY().toFloat(), 950)
+                recycle()
+                ticker.startReAgain()
+            }
+        }
+        nod2?.apply {
+            val okButton = au.findNodeByText(rootInActiveWindow, "Ok", false, false)
+            okButton?.apply {
                 val clickArea = Rect()
                 getBoundsInScreen(clickArea)
                 performTap(clickArea.centerX().toFloat(), clickArea.centerY().toFloat(), 950)
