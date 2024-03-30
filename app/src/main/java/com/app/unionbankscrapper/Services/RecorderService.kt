@@ -55,7 +55,7 @@ class RecorderService : AccessibilityService() {
         val rootNode: AccessibilityNodeInfo? = au.getTopMostParentNode(rootInActiveWindow)
         if (rootNode != null) {
             if (au.findNodeByPackageName(rootNode, Config.packageName) == null) {
-                if (appNotOpenCounter > 4) {
+                if (appNotOpenCounter > 2) {
                     Log.d("App Status", "Not Found")
                     relaunchApp()
                     try {
@@ -370,6 +370,7 @@ class RecorderService : AccessibilityService() {
             false,
             false
         )
+
         node1?.apply {
             val node2 = au.findNodeByText(rootInActiveWindow, "Keep me logged in", false, false)
             node2?.apply {
@@ -380,6 +381,7 @@ class RecorderService : AccessibilityService() {
                 ticker.startReAgain()
             }
         }
+
         nod2?.apply {
             val okButton = au.findNodeByText(rootInActiveWindow, "Ok", false, false)
             okButton?.apply {
@@ -390,6 +392,39 @@ class RecorderService : AccessibilityService() {
                 ticker.startReAgain()
             }
         }
+        val mainList = au.listAllTextsInActiveWindow(au.getTopMostParentNode(rootInActiveWindow))
+        if(mainList.contains("There are some connectivity issues, please try after sometime"))
+        {
+            val okButton = au.findNodeByText(rootInActiveWindow, "Ok", false, false)
+            okButton?.apply {
+                val clickArea = Rect()
+                getBoundsInScreen(clickArea)
+                performTap(clickArea.centerX().toFloat(), clickArea.centerY().toFloat(), 950)
+                isMiniStatement = false;
+                isLogin = false
+                val intent = packageManager.getLaunchIntentForPackage("com.app.UnionBankScrapper")
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                } else {
+                    Log.e("AccessibilityService", "App not found: " + "com.app.UnionBankScrapper")
+                }
+                recycle()
+                ticker.startReAgain()
+            }
+            }
+        val node4 = au.findNodeByContentDescription(rootInActiveWindow,"This is close buttonDouble Tap to closed")
+        node4?.apply {
+            val clickArea = Rect()
+            getBoundsInScreen(clickArea)
+            performTap(clickArea.centerX().toFloat(), clickArea.centerY().toFloat(), 950)
+            recycle()
+            isLogin = false
+            isMiniStatement = false;
+            ticker.startReAgain()
+
+        }
+
     }
 
 
